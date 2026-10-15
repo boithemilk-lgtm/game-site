@@ -23,7 +23,6 @@ nav a{color:var(--muted);margin-left:22px;text-decoration:none;font-size:14px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
 .card h3{margin:0 0 6px}.card p{color:var(--muted);margin:0;font-size:14px}
 
-/* ===== hidden game hub ===== */
 #hub{display:none;min-height:100vh;background:#0a0b14;color:#e8ebf7;
  background-image:radial-gradient(circle at 20% 0%,#2a1f6b55,transparent 50%),radial-gradient(circle at 90% 30%,#00d4ff22,transparent 45%)}
 #hub header{display:flex;align-items:center;gap:8px;padding:14px 5vw;border-bottom:1px solid #ffffff14;backdrop-filter:blur(10px);position:sticky;top:0;z-index:5}
@@ -36,7 +35,7 @@ nav a{color:var(--muted);margin-left:22px;text-decoration:none;font-size:14px}
 .g:hover{transform:translateY(-4px);border-color:#8b7bff;box-shadow:0 10px 30px #6c5cff44}
 .g .ic{font-size:42px}.g b{display:block;margin-top:8px}
 #stage{margin-top:20px}
-#stage iframe{width:100%;height:70vh;border:1px solid #ffffff14;border-radius:14px;background:#000}
+#stage iframe,#pbox iframe{width:100%;height:70vh;border:1px solid #ffffff14;border-radius:14px;background:#fff}
 canvas{background:#05060d;border:1px solid #ffffff22;border-radius:14px;display:block;margin:auto;max-width:100%}
 .bar{display:flex;gap:8px;margin-bottom:14px}
 .bar input{flex:1;background:#ffffff0d;border:1px solid #ffffff1a;color:#fff;border-radius:10px;padding:11px 14px;outline:none}
@@ -44,12 +43,10 @@ canvas{background:#05060d;border:1px solid #ffffff22;border-radius:14px;display:
 #log{height:50vh;overflow:auto;background:#ffffff08;border:1px solid #ffffff14;border-radius:14px;padding:14px;margin-bottom:12px}
 .m{margin:6px 0;font-size:14px}.m i{color:#8b7bff;font-style:normal;font-weight:700}
 .note{color:#9aa2c8;font-size:13px;margin:8px 0}
-#pf{width:100%;height:68vh;border:1px solid #ffffff14;border-radius:14px;background:#000}
 </style>
 </head>
 <body>
 
-<!-- ===== DISGUISE ===== -->
 <div id="front">
   <nav><div class="logo">Atlas<span>Notes</span></div>
     <div><a href="#">Notebooks</a><a href="#">Flashcards</a><a href="#">Pricing</a><a href="#">Sign in</a></div></nav>
@@ -66,7 +63,6 @@ canvas{background:#05060d;border:1px solid #ffffff22;border-radius:14px;display:
   </section>
 </div>
 
-<!-- ===== HIDDEN HUB ===== -->
 <div id="hub">
   <header>
     <div class="brand">⚡ NOVA ARCADE</div>
@@ -84,60 +80,49 @@ canvas{background:#05060d;border:1px solid #ffffff22;border-radius:14px;display:
   <div class="panel" id="chat">
     <div id="log"></div>
     <form class="bar" id="cf"><input id="ci" placeholder="Say something…" autocomplete="off"><button>Send</button></form>
-    <p class="note" id="cnote"></p>
+    <p class="note" id="cnote">Connecting…</p>
   </div>
 
   <div class="panel" id="proxy">
     <form class="bar" id="pform"><input id="pi" placeholder="Enter a URL or search term"><button>Go</button></form>
     <p class="note" id="pnote"></p>
-    <iframe id="pf"></iframe>
+    <div id="pbox"></div>
   </div>
 </div>
 
 <script>
-/* ================= CONFIG ================= */
 const SECRET = "67";
-// Games: add your own. "url" opens in an iframe (host games yourself, e.g. via jsDelivr).
 const GAMES = [
   {name:"Snake", icon:"🐍", builtin:"snake"},
   {name:"Clicker", icon:"🖱️", builtin:"clicker"},
   // {name:"My Game", icon:"🎮", url:"https://cdn.jsdelivr.net/gh/YOURUSER/YOURREPO@main/games/mygame/index.html"},
 ];
-// Chat: put a WebSocket server URL here for real multi-user chat (e.g. "wss://your-chat.example.com").
-// Left empty, chat only works between tabs in the same browser.
-const WS_URL = "";
-// Proxy: URL prefix of a proxy server you host (e.g. an Ultraviolet/Scramjet deployment).
-// Final iframe src = PROXY_PREFIX + encoded URL. Must be hosted on a Node server, NOT jsDelivr.
-const PROXY_PREFIX = "";
-/* ========================================== */
 
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const hub=$("#hub"), front=$("#front");
-function showHub(){front.style.display="none";hub.style.display="block";document.title="Atlas Notes – Study Smarter"}
+function showHub(){front.style.display="none";hub.style.display="block"}
 function hideHub(){hub.style.display="none";front.style.display="block";$("#q").value="";stopGame()}
 $("#sf").onsubmit=e=>{e.preventDefault();
-  if($("#q").value.trim()===SECRET) showHub(); else { $("#q").placeholder="No results found. Try another search."; $("#q").value="" } };
+  if($("#q").value.trim()===SECRET) showHub(); else {$("#q").placeholder="No results found. Try another search.";$("#q").value=""}};
 addEventListener("keydown",e=>{if(e.key==="Escape"&&hub.style.display==="block")hideHub()});
 $("#exit").onclick=hideHub;
-
 $$(".tab[data-t]").forEach(b=>b.onclick=()=>{
   $$(".tab").forEach(x=>x.classList.remove("on"));b.classList.add("on");
   $$(".panel").forEach(p=>p.classList.toggle("on",p.id===b.dataset.t));});
 
 /* ---- games ---- */
-let loop=null, keyH=null;
+let loop=null,keyH=null;
 function stopGame(){clearInterval(loop);loop=null;if(keyH)removeEventListener("keydown",keyH);keyH=null;$("#stage").innerHTML=""}
 $("#glist").innerHTML=GAMES.map((g,i)=>`<div class="g" data-i="${i}"><div class="ic">${g.icon}</div><b>${g.name}</b></div>`).join("");
 $$(".g").forEach(el=>el.onclick=()=>{
   stopGame();const g=GAMES[el.dataset.i],st=$("#stage");
-  if(g.url){st.innerHTML=`<iframe src="${g.url}" allowfullscreen></iframe>`}
-  else if(g.builtin==="snake")snake(st); else if(g.builtin==="clicker")clicker(st);
+  if(g.url)st.innerHTML=`<iframe src="${g.url}" allowfullscreen></iframe>`;
+  else if(g.builtin==="snake")snake(st);else if(g.builtin==="clicker")clicker(st);
   st.scrollIntoView({behavior:"smooth"});});
-
 function snake(st){
   st.innerHTML='<canvas id="c" width="400" height="400"></canvas><p class="note" style="text-align:center">Arrow keys / WASD</p>';
   const c=$("#c").getContext("2d"),N=20,S=20;let s=[{x:10,y:10}],d={x:1,y:0},f={x:5,y:5},sc=0;
-  keyH=e=>{const k=e.key.toLowerCase(),m={arrowup:[0,-1],w:[0,-1],arrowdown:[0,1],s:[0,1],arrowleft:[-1,0],a:[-1,0],arrowright:[1,0],d:[1,0]}[k];
+  keyH=e=>{const m={arrowup:[0,-1],w:[0,-1],arrowdown:[0,1],s:[0,1],arrowleft:[-1,0],a:[-1,0],arrowright:[1,0],d:[1,0]}[e.key.toLowerCase()];
     if(m&&!(m[0]===-d.x&&m[1]===-d.y)){d={x:m[0],y:m[1]};e.preventDefault()}};
   addEventListener("keydown",keyH);
   loop=setInterval(()=>{
@@ -155,31 +140,47 @@ function clicker(st){
   $("#b").onclick=()=>$("#n").textContent=++n;
 }
 
-/* ---- chat ---- */
+/* ---- chat (same-origin WebSocket at /chat) ---- */
 const me="user"+(Math.random()*9000+1000|0);
+const origin=(location.protocol==="https:"?"wss://":"ws://")+location.host;
 function addMsg(u,t){const d=document.createElement("div");d.className="m";
   const i=document.createElement("i");i.textContent=u+": ";d.append(i,document.createTextNode(t));
   $("#log").append(d);$("#log").scrollTop=1e9}
-let send;
-if(WS_URL){
-  const ws=new WebSocket(WS_URL);
-  ws.onmessage=e=>{try{const m=JSON.parse(e.data);addMsg(m.u,m.t)}catch{}};
-  send=t=>ws.readyState===1&&ws.send(JSON.stringify({u:me,t}));
-  $("#cnote").textContent="Connected to global chat as "+me;
-}else{
-  const bc=new BroadcastChannel("nova-chat");
-  bc.onmessage=e=>addMsg(e.data.u,e.data.t);
-  send=t=>{bc.postMessage({u:me,t});addMsg(me,t)};
-  $("#cnote").textContent="Local chat only (same browser). Set WS_URL for real multiplayer chat.";
+let cws;
+function connectChat(){
+  cws=new WebSocket(origin+"/chat");
+  cws.onopen=()=>$("#cnote").textContent="Connected as "+me;
+  cws.onmessage=e=>{try{const m=JSON.parse(e.data);addMsg(m.u,m.t)}catch{}};
+  cws.onclose=()=>{$("#cnote").textContent="Disconnected. Retrying…";setTimeout(connectChat,2000)};
 }
-$("#cf").onsubmit=e=>{e.preventDefault();const t=$("#ci").value.trim().slice(0,300);if(t){send(t);if(WS_URL)addMsg(me,t)}$("#ci").value=""};
+connectChat();
+$("#cf").onsubmit=e=>{e.preventDefault();const t=$("#ci").value.trim();
+  if(t&&cws.readyState===1)cws.send(JSON.stringify({u:me,t}));$("#ci").value=""};
 
-/* ---- proxy ---- */
-$("#pnote").textContent=PROXY_PREFIX?"":"No proxy configured. Set PROXY_PREFIX to your hosted proxy server (see setup notes).";
-$("#pform").onsubmit=e=>{e.preventDefault();if(!PROXY_PREFIX)return;
+/* ---- proxy (Scramjet) ---- */
+const loadJS=s=>new Promise((ok,no)=>{const e=document.createElement("script");e.src=s;e.onload=ok;e.onerror=()=>no(new Error("Failed to load "+s));document.head.append(e)});
+let sj=null,fr=null;
+async function initProxy(){
+  if(sj)return;
+  $("#pnote").textContent="Starting proxy…";
+  await loadJS("/scram/scramjet.all.js");
+  await loadJS("/baremux/index.js");
+  await navigator.serviceWorker.register("/sw.js",{scope:"/"});
+  await navigator.serviceWorker.ready;
+  const {ScramjetController}=$scramjetLoadController();
+  const c=new ScramjetController({files:{wasm:"/scram/scramjet.wasm.wasm",all:"/scram/scramjet.all.js",sync:"/scram/scramjet.sync.js"}});
+  await c.init();
+  const conn=new BareMux.BareMuxConnection("/baremux/worker.js");
+  await conn.setTransport("/libcurl/index.mjs",[{websocket:origin+"/wisp/"}]);
+  fr=c.createFrame();$("#pbox").append(fr.frame);
+  sj=c;$("#pnote").textContent="";
+}
+$("#pform").onsubmit=async e=>{
+  e.preventDefault();
   let v=$("#pi").value.trim();if(!v)return;
   if(!/^https?:\/\//.test(v))v=/\.\w{2,}/.test(v)&&!v.includes(" ")?"https://"+v:"https://duckduckgo.com/?q="+encodeURIComponent(v);
-  $("#pf").src=PROXY_PREFIX+encodeURIComponent(v)};
+  try{await initProxy();fr.go(v)}catch(err){$("#pnote").textContent="Proxy error: "+err.message}
+};
 </script>
 </body>
 </html>
