@@ -35,7 +35,7 @@ nav a{color:var(--muted);margin-left:22px;text-decoration:none;font-size:14px}
 .g:hover{transform:translateY(-4px);border-color:#8b7bff;box-shadow:0 10px 30px #6c5cff44}
 .g .ic{font-size:42px}.g b{display:block;margin-top:8px}
 #stage{margin-top:20px}
-#stage iframe,#pbox iframe{width:100%;height:70vh;border:1px solid #ffffff14;border-radius:14px;background:#fff}
+#stage iframe,#pbox iframe{width:100%;height:72vh;border:1px solid #ffffff14;border-radius:14px;background:#fff}
 canvas{background:#05060d;border:1px solid #ffffff22;border-radius:14px;display:block;margin:auto;max-width:100%}
 .bar{display:flex;gap:8px;margin-bottom:14px}
 .bar input{flex:1;background:#ffffff0d;border:1px solid #ffffff1a;color:#fff;border-radius:10px;padding:11px 14px;outline:none}
@@ -85,7 +85,7 @@ canvas{background:#05060d;border:1px solid #ffffff22;border-radius:14px;display:
 
   <div class="panel" id="proxy">
     <form class="bar" id="pform"><input id="pi" placeholder="Enter a URL or search term"><button>Go</button></form>
-    <p class="note" id="pnote"></p>
+    <p class="note">Works best on simple sites. Logins and heavy web apps won't work.</p>
     <div id="pbox"></div>
   </div>
 </div>
@@ -140,7 +140,7 @@ function clicker(st){
   $("#b").onclick=()=>$("#n").textContent=++n;
 }
 
-/* ---- chat (same-origin WebSocket at /chat) ---- */
+/* ---- chat ---- */
 const me="user"+(Math.random()*9000+1000|0);
 const origin=(location.protocol==="https:"?"wss://":"ws://")+location.host;
 function addMsg(u,t){const d=document.createElement("div");d.className="m";
@@ -157,29 +157,14 @@ connectChat();
 $("#cf").onsubmit=e=>{e.preventDefault();const t=$("#ci").value.trim();
   if(t&&cws.readyState===1)cws.send(JSON.stringify({u:me,t}));$("#ci").value=""};
 
-/* ---- proxy (Scramjet) ---- */
-const loadJS=s=>new Promise((ok,no)=>{const e=document.createElement("script");e.src=s;e.onload=ok;e.onerror=()=>no(new Error("Failed to load "+s));document.head.append(e)});
-let sj=null,fr=null;
-async function initProxy(){
-  if(sj)return;
-  $("#pnote").textContent="Starting proxy…";
-  await loadJS("/scram/scramjet.all.js");
-  await loadJS("/baremux/index.js");
-  await navigator.serviceWorker.register("/sw.js",{scope:"/"});
-  await navigator.serviceWorker.ready;
-  const {ScramjetController}=$scramjetLoadController();
-  const c=new ScramjetController({files:{wasm:"/scram/scramjet.wasm.wasm",all:"/scram/scramjet.all.js",sync:"/scram/scramjet.sync.js"}});
-  await c.init();
-  const conn=new BareMux.BareMuxConnection("/baremux/worker.js");
-  await conn.setTransport("/libcurl/index.mjs",[{websocket:origin+"/wisp/"}]);
-  fr=c.createFrame();$("#pbox").append(fr.frame);
-  sj=c;$("#pnote").textContent="";
-}
-$("#pform").onsubmit=async e=>{
+/* ---- proxy ---- */
+let pFrame=null;
+$("#pform").onsubmit=e=>{
   e.preventDefault();
   let v=$("#pi").value.trim();if(!v)return;
-  if(!/^https?:\/\//.test(v))v=/\.\w{2,}/.test(v)&&!v.includes(" ")?"https://"+v:"https://duckduckgo.com/?q="+encodeURIComponent(v);
-  try{await initProxy();fr.go(v)}catch(err){$("#pnote").textContent="Proxy error: "+err.message}
+  if(!/^https?:\/\//.test(v))v=/\.\w{2,}/.test(v)&&!v.includes(" ")?"https://"+v:"https://duckduckgo.com/html/?q="+encodeURIComponent(v);
+  if(!pFrame){pFrame=document.createElement("iframe");$("#pbox").append(pFrame)}
+  pFrame.src="/p?url="+encodeURIComponent(v);
 };
 </script>
 </body>
