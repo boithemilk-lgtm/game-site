@@ -4,12 +4,9 @@
   "type": "module",
   "scripts": { "start": "node server.js" },
   "dependencies": {
-    "fastify": "^5.7.4",
     "@fastify/static": "^9.0.0",
-    "@mercuryworkshop/bare-mux": "^2.1.9",
-    "@mercuryworkshop/libcurl-transport": "^1.5.2",
-    "@mercuryworkshop/scramjet": "https://github.com/MercuryWorkshop/scramjet/releases/download/v1.1.0/mercuryworkshop-scramjet-1.1.0.tgz",
-    "@mercuryworkshop/wisp-js": "^0.4.1",
+    "cheerio": "^1.0.0",
+    "fastify": "^5.7.4",
     "ws": "^8.18.3"
   }
 }
