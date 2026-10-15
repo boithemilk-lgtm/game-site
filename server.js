@@ -42,13 +42,14 @@ async function isSafeHost(host) {
   }
 }
 
-// Simple per-IP rate limit: 120 requests per minute
+// Per-IP rate limit: 1500 requests per minute (one page load = many requests)
+const LIMIT = 1500;
 const hits = new Map();
 setInterval(() => hits.clear(), 60_000);
 const limited = (ip) => {
   const n = (hits.get(ip) || 0) + 1;
   hits.set(ip, n);
-  return n > 120;
+  return n > LIMIT;
 };
 
 const proxify = (u, base) => {
@@ -78,6 +79,7 @@ function rewriteCss(css, base) {
 
 /* ================= SERVER ================= */
 const fastify = Fastify({
+  trustProxy: true, // use each visitor's real IP behind a host's proxy
   serverFactory: (handler) => {
     const s = createServer((req, res) => handler(req, res));
     s.on("upgrade", (req, socket, head) => {
@@ -92,7 +94,7 @@ const fastify = Fastify({
 fastify.register(fastifyStatic, { root: publicPath });
 
 fastify.get("/p", async (req, reply) => {
-  if (limited(req.ip)) return reply.code(429).send("Too many requests");
+  if (limited(req.ip)) return reply.code(429).send("Too many requests. Wait a minute and try again.");
 
   // GET forms arrive as /p?__u=<action>&field=value...
   let target;
