@@ -10,9 +10,14 @@ import { WebSocketServer } from "ws";
 import * as cheerio from "cheerio";
 import { checkUrl, checkChat, safeSearch } from "./filter.js";
 
-const publicPath = fileURLToPath(new URL("./public/", import.meta.url));
+/* ================= CONFIG ================= */
+// This text MUST be identical to APP_SECRET in server.py. Change it to anything you like (in both files).
+const SECRET = process.env.APP_SECRET || "novaarcade-k29xqpz7-change-me";
 const ADMIN_NAME = "jackwobbe";
 const RESERVED = ["admin", "administrator", "moderator", "mod", "system", "owner", "staff"];
+/* ========================================== */
+
+const publicPath = fileURLToPath(new URL("./public/", import.meta.url));
 
 /* ================= STORAGE ================= */
 const DATA_DIR = process.env.DATA_DIR || fileURLToPath(new URL("./data/", import.meta.url));
@@ -22,23 +27,16 @@ let db = { users: {}, blockedDomains: [], blockedWords: [] };
 try { db = { ...db, ...JSON.parse(readFileSync(DB_FILE, "utf8")) }; } catch {}
 const save = () => { try { writeFileSync(DB_FILE, JSON.stringify(db)); } catch (e) { console.error("Could not save data:", e.message); } };
 
-const events = []; // recent blocked attempts, kept in memory
+const events = [];
 const addLog = (kind, who, detail) => {
   events.unshift({ ts: Date.now(), kind, who, detail: String(detail).slice(0, 200) });
   if (events.length > 200) events.length = 200;
 };
 
-/* ================= SECRET + TOKENS ================= */
-let SECRET = process.env.APP_SECRET;
-if (!SECRET) {
-  const f = DATA_DIR + "/secret.txt";
-  try { SECRET = readFileSync(f, "utf8").trim(); } catch {}
-  if (!SECRET) { SECRET = crypto.randomBytes(24).toString("hex"); try { writeFileSync(f, SECRET); } catch {} }
-}
+/* ================= AUTH ================= */
 const ADMIN_CODE = process.env.ADMIN_CODE || crypto.randomBytes(4).toString("hex");
-console.log("APP_SECRET =", SECRET, " (paste this into server.py)");
 const getUser = (n) => db.users[String(n).toLowerCase()];
-if (!getUser(ADMIN_NAME)) console.log(`Admin setup code for "${ADMIN_NAME}": ${ADMIN_CODE}`);
+if (!getUser(ADMIN_NAME)) console.log(`Admin setup code for "${ADMIN_NAME}": ${ADMIN_CODE}  (only needed once, when you create that account)`);
 
 const sign = (p) => crypto.createHmac("sha256", SECRET).update(p).digest("hex");
 const makeToken = (name) => {
