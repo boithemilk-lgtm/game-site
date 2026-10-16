@@ -25,8 +25,11 @@ nav a{color:var(--muted);margin-left:22px;text-decoration:none;font-size:14px}
 
 #hub{display:none;min-height:100vh;background:#0a0b14;color:#e8ebf7;
  background-image:radial-gradient(circle at 20% 0%,#2a1f6b55,transparent 50%),radial-gradient(circle at 90% 30%,#00d4ff22,transparent 45%)}
-#hub header{display:flex;align-items:center;gap:8px;padding:14px 5vw;border-bottom:1px solid #ffffff14;backdrop-filter:blur(10px);position:sticky;top:0;z-index:5}
+#hub header{display:flex;align-items:center;gap:8px;padding:14px 5vw;border-bottom:1px solid #ffffff14;backdrop-filter:blur(10px);position:sticky;top:0;z-index:5;flex-wrap:wrap}
 #hub .brand{font-weight:900;font-size:20px;background:linear-gradient(90deg,#8b7bff,#00d4ff);-webkit-background-clip:text;color:transparent;margin-right:auto}
+#hub:not(.authed) .appOnly{display:none}
+#hub:not(.authed) .panel{display:none!important}
+#hub.authed #auth{display:none}
 .tab{background:#ffffff0d;border:1px solid #ffffff14;color:#cfd4ee;padding:8px 16px;border-radius:999px;cursor:pointer;font-size:14px}
 .tab.on{background:linear-gradient(90deg,#6c5cff,#00b8ff);color:#fff;border-color:transparent}
 .panel{display:none;padding:24px 5vw}.panel.on{display:block}
@@ -38,11 +41,24 @@ nav a{color:var(--muted);margin-left:22px;text-decoration:none;font-size:14px}
 #stage iframe,#pbox iframe{width:100%;height:72vh;border:1px solid #ffffff14;border-radius:14px;background:#fff}
 canvas{background:#05060d;border:1px solid #ffffff22;border-radius:14px;display:block;margin:auto;max-width:100%}
 .bar{display:flex;gap:8px;margin-bottom:14px}
-.bar input{flex:1;background:#ffffff0d;border:1px solid #ffffff1a;color:#fff;border-radius:10px;padding:11px 14px;outline:none}
-.bar button{background:linear-gradient(90deg,#6c5cff,#00b8ff);border:0;color:#fff;border-radius:10px;padding:0 20px;cursor:pointer}
+.bar input,.field{background:#ffffff0d;border:1px solid #ffffff1a;color:#fff;border-radius:10px;padding:11px 14px;outline:none;font-size:14px}
+.bar input{flex:1}
+.bar button,.btn{background:linear-gradient(90deg,#6c5cff,#00b8ff);border:0;color:#fff;border-radius:10px;padding:10px 18px;cursor:pointer}
+.btn.sm{padding:5px 10px;font-size:12px;border-radius:8px}.btn.red{background:#d6455d}.btn.gray{background:#ffffff1f}
 #log{height:50vh;overflow:auto;background:#ffffff08;border:1px solid #ffffff14;border-radius:14px;padding:14px;margin-bottom:12px}
-.m{margin:6px 0;font-size:14px}.m i{color:#8b7bff;font-style:normal;font-weight:700}
+.m{margin:6px 0;font-size:14px}.m i{color:#8b7bff;font-style:normal;font-weight:700}.m.sys{color:#e6a23c;font-style:italic}
+.m .x{margin-left:8px;cursor:pointer;color:#d6455d}
 .note{color:#9aa2c8;font-size:13px;margin:8px 0}
+#auth{max-width:380px;margin:60px auto;padding:0 20px}
+#auth form{display:flex;flex-direction:column;gap:10px}
+#auth a,.lnk{color:#8b7bff;cursor:pointer}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:22px}
+td,th{padding:8px;border-bottom:1px solid #ffffff14;text-align:left}
+.chip{display:inline-flex;gap:6px;align-items:center;background:#ffffff14;border-radius:999px;padding:4px 10px;margin:3px;font-size:12px}
+.chip span{cursor:pointer;color:#d6455d}
+.badge{font-size:11px;border-radius:6px;padding:2px 6px;margin-right:4px}
+.b-on{background:#1f9d55}.b-mute{background:#c9871f}.b-ban{background:#d6455d}.b-adm{background:#6c5cff}
+h3{margin:22px 0 8px}
 </style>
 </head>
 <body>
@@ -66,11 +82,26 @@ canvas{background:#05060d;border:1px solid #ffffff22;border-radius:14px;display:
 <div id="hub">
   <header>
     <div class="brand">⚡ NOVA ARCADE</div>
-    <button class="tab on" data-t="games">Games</button>
-    <button class="tab" data-t="chat">Chat</button>
-    <button class="tab" data-t="proxy">Proxy</button>
+    <span id="who" class="note appOnly" style="margin:0 8px"></span>
+    <button class="tab on appOnly" data-t="games">Games</button>
+    <button class="tab appOnly" data-t="chat">Chat</button>
+    <button class="tab appOnly" data-t="proxy">Proxy</button>
+    <button class="tab appOnly" data-t="admin" id="admintab" style="display:none">Admin</button>
+    <button class="tab appOnly" id="logout">Log out</button>
     <button class="tab" id="exit">Hide (Esc)</button>
   </header>
+
+  <div id="auth">
+    <h2 id="atitle">Sign in</h2>
+    <form id="af">
+      <input class="field" id="au" placeholder="Username" autocomplete="username" maxlength="16">
+      <input class="field" id="ap" type="password" placeholder="Password" autocomplete="current-password">
+      <input class="field" id="ac" placeholder="Admin setup code" style="display:none">
+      <button class="btn">Continue</button>
+      <p class="note" id="aerr" style="color:#ff7b8f"></p>
+      <p class="note"><a id="aswitch">Create an account</a></p>
+    </form>
+  </div>
 
   <div class="panel on" id="games">
     <div class="games" id="glist"></div>
@@ -79,22 +110,23 @@ canvas{background:#05060d;border:1px solid #ffffff22;border-radius:14px;display:
 
   <div class="panel" id="chat">
     <div id="log"></div>
-    <form class="bar" id="cf"><input id="ci" placeholder="Say something…" autocomplete="off"><button>Send</button></form>
+    <form class="bar" id="cf"><input id="ci" placeholder="Say something…" autocomplete="off" maxlength="300"><button>Send</button></form>
     <p class="note" id="cnote">Connecting…</p>
   </div>
 
   <div class="panel" id="proxy">
     <form class="bar" id="pform"><input id="pi" placeholder="Enter a URL or search term"><button>Go</button></form>
-    <p class="note">Works best on simple sites. Logins and heavy web apps won't work.</p>
+    <p class="note">Works best on simple sites. Logins and heavy web apps won't work. Inappropriate sites are blocked.</p>
     <div id="pbox"></div>
   </div>
+
+  <div class="panel" id="admin"></div>
 </div>
 
 <script>
 /* ================= CONFIG ================= */
 const SECRET = "67";
-// Your Selenium server's tunnel address. Changes every time you restart cloudflared!
-const REMOTE_WS = "wss://utils-roof-rabbit-bradley.trycloudflare.com/ws";
+const REMOTE_WS = "wss://utils-roof-rabbit-bradley.trycloudflare.com/ws"; // changes whenever you restart cloudflared
 const GAMES = [
   {name:"Chrome", icon:"🌐", builtin:"remote"},
   {name:"Snake", icon:"🐍", builtin:"snake"},
@@ -104,16 +136,45 @@ const GAMES = [
 /* ========================================== */
 
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const api=async(path,body)=>{
+  const r=await fetch(path,{method:body?"POST":"GET",headers:body?{"content-type":"application/json"}:{},body:body?JSON.stringify(body):undefined,credentials:"same-origin"});
+  let d={};try{d=await r.json()}catch{}
+  if(!r.ok)throw new Error(d.error||"Request failed");return d};
 const hub=$("#hub"), front=$("#front");
-function showHub(){front.style.display="none";hub.style.display="block"}
+let me=null;
+
+function showHub(){front.style.display="none";hub.style.display="block";if(!me)api("/api/me").then(enter).catch(()=>{})}
 function hideHub(){hub.style.display="none";front.style.display="block";$("#q").value="";stopGame()}
 $("#sf").onsubmit=e=>{e.preventDefault();
   if($("#q").value.trim()===SECRET) showHub(); else {$("#q").placeholder="No results found. Try another search.";$("#q").value=""}};
 addEventListener("keydown",e=>{if(e.key==="Escape"&&hub.style.display==="block")hideHub()});
 $("#exit").onclick=hideHub;
-$$(".tab[data-t]").forEach(b=>b.onclick=()=>{
-  $$(".tab").forEach(x=>x.classList.remove("on"));b.classList.add("on");
-  $$(".panel").forEach(p=>p.classList.toggle("on",p.id===b.dataset.t));});
+function openTab(t){
+  $$(".tab[data-t]").forEach(x=>x.classList.toggle("on",x.dataset.t===t));
+  $$(".panel").forEach(p=>p.classList.toggle("on",p.id===t));
+  if(t==="admin")loadAdmin();}
+$$(".tab[data-t]").forEach(b=>b.onclick=()=>openTab(b.dataset.t));
+
+/* ---- sign in / sign up ---- */
+let mode="login";
+function setMode(m){mode=m;$("#atitle").textContent=m==="login"?"Sign in":"Create account";
+  $("#aswitch").textContent=m==="login"?"Create an account":"I already have an account";
+  $("#ap").autocomplete=m==="login"?"current-password":"new-password";$("#aerr").textContent="";checkAdminField()}
+function checkAdminField(){$("#ac").style.display=(mode==="signup"&&$("#au").value.trim().toLowerCase()==="jackwobbe")?"":"none"}
+$("#aswitch").onclick=()=>setMode(mode==="login"?"signup":"login");
+$("#au").oninput=checkAdminField;
+$("#af").onsubmit=async e=>{
+  e.preventDefault();$("#aerr").textContent="";
+  try{enter(await api(mode==="signup"?"/api/signup":"/api/login",{username:$("#au").value,password:$("#ap").value,code:$("#ac").value}));$("#ap").value=""}
+  catch(err){$("#aerr").textContent=err.message}};
+function enter(u){
+  me=u;hub.classList.add("authed");$("#who").textContent="@"+u.name;
+  $("#admintab").style.display=u.admin?"":"none";
+  openTab("games");connectChat()}
+$("#logout").onclick=async()=>{
+  try{await api("/api/logout",{})}catch{}
+  me=null;hub.classList.remove("authed");stopGame();if(cws){cws.close();cws=null}$("#log").innerHTML=""};
 
 /* ---- games ---- */
 let loop=null,keyH=null,rws=null;
@@ -158,7 +219,7 @@ function clicker(st){
 function remote(st){
   st.innerHTML=`<div class="bar"><button class="tab" id="rb">◀</button><button class="tab" id="rf">▶</button><button class="tab" id="rr">⟳</button><input id="ru" placeholder="Search or enter URL"></div>
   <canvas id="rc" width="1280" height="720" tabindex="0" style="width:100%;outline:none"></canvas><p class="note" id="rs">Connecting…</p>`;
-  const cv=$("#rc"),cx=cv.getContext("2d"),ws=rws=new WebSocket(REMOTE_WS),
+  const cv=$("#rc"),cx=cv.getContext("2d"),ws=rws=new WebSocket(REMOTE_WS+"?token="+encodeURIComponent(me.token)),
         send=o=>ws.readyState===1&&ws.send(JSON.stringify(o));
   ws.onmessage=async e=>{
     if(typeof e.data==="string"){
@@ -170,7 +231,7 @@ function remote(st){
     const b=await createImageBitmap(e.data);cx.drawImage(b,0,0,cv.width,cv.height);b.close();
   };
   ws.onerror=()=>{const s=$("#rs");if(s)s.textContent="Could not reach the server. Is python server.py and cloudflared running, and is the address in REMOTE_WS current?"};
-  ws.onclose=ev=>{const s=$("#rs");if(s&&!/^Error|busy|ended|Could not/i.test(s.textContent))s.textContent="Disconnected (code "+ev.code+")"};
+  ws.onclose=ev=>{const s=$("#rs");if(s&&!/^Error|busy|ended|Could not|sign in|banned/i.test(s.textContent))s.textContent="Disconnected (code "+ev.code+")"};
   const pos=e=>{const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height}};
   const mods=e=>(e.altKey?1:0)|(e.ctrlKey?2:0)|(e.metaKey?4:0)|(e.shiftKey?8:0);
   const btn=["left","middle","right"];
@@ -185,7 +246,7 @@ function remote(st){
   cv.onwheel=e=>{e.preventDefault();send({t:"w",...pos(e),dx:e.deltaX,dy:e.deltaY})};
   const key=type=>e=>{
     e.stopPropagation();
-    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="v")return; // paste event handles it
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="v")return;
     e.preventDefault();
     const text=(e.ctrlKey||e.metaKey||e.altKey)?"":(e.key.length===1?e.key:(e.key==="Enter"?"\r":""));
     send({t:"k",type,key:e.key,code:e.code,vk:e.keyCode,mods:mods(e),text});
@@ -199,30 +260,86 @@ function remote(st){
 }
 
 /* ---- chat ---- */
-const me="user"+(Math.random()*9000+1000|0);
 const origin=(location.protocol==="https:"?"wss://":"ws://")+location.host;
-function addMsg(u,t){const d=document.createElement("div");d.className="m";
-  const i=document.createElement("i");i.textContent=u+": ";d.append(i,document.createTextNode(t));
+let cws=null;
+function addMsg(m){
+  const d=document.createElement("div");d.className="m";d.dataset.id=m.id;
+  const i=document.createElement("i");i.textContent=m.u+(m.admin?" 👑":"")+": ";
+  d.append(i,document.createTextNode(m.t));
+  if(me&&me.admin){const x=document.createElement("span");x.className="x";x.textContent="✕";x.onclick=()=>api("/api/admin/chat",{action:"delete",id:m.id});d.append(x)}
   $("#log").append(d);$("#log").scrollTop=1e9}
-let cws;
+function addSys(t){const d=document.createElement("div");d.className="m sys";d.textContent=t;$("#log").append(d);$("#log").scrollTop=1e9}
 function connectChat(){
-  cws=new WebSocket(origin+"/chat");
-  cws.onopen=()=>$("#cnote").textContent="Connected as "+me;
-  cws.onmessage=e=>{try{const m=JSON.parse(e.data);addMsg(m.u,m.t)}catch{}};
-  cws.onclose=()=>{$("#cnote").textContent="Disconnected. Retrying…";setTimeout(connectChat,2000)};
+  if(!me||cws)return;
+  const ws=cws=new WebSocket(origin+"/chat");
+  ws.onopen=()=>$("#cnote").textContent="Chatting as "+me.name;
+  ws.onmessage=e=>{
+    const m=JSON.parse(e.data);
+    if(m.type==="hist"){$("#log").innerHTML="";m.msgs.forEach(addMsg)}
+    else if(m.type==="msg")addMsg(m);
+    else if(m.type==="sys")addSys(m.t);
+    else if(m.type==="clear")$("#log").innerHTML="";
+    else if(m.type==="del"){const el=$(`#log [data-id="${m.id}"]`);if(el)el.remove()}
+  };
+  ws.onclose=()=>{if(cws===ws)cws=null;$("#cnote").textContent="Disconnected. Retrying…";if(me)setTimeout(connectChat,3000)};
 }
-connectChat();
 $("#cf").onsubmit=e=>{e.preventDefault();const t=$("#ci").value.trim();
-  if(t&&cws.readyState===1)cws.send(JSON.stringify({u:me,t}));$("#ci").value=""};
+  if(t&&cws&&cws.readyState===1)cws.send(JSON.stringify({t}));$("#ci").value=""};
 
 /* ---- proxy ---- */
 let pFrame=null;
 $("#pform").onsubmit=e=>{
   e.preventDefault();
   let v=$("#pi").value.trim();if(!v)return;
-  if(!/^https?:\/\//.test(v))v=/\.\w{2,}/.test(v)&&!v.includes(" ")?"https://"+v:"https://duckduckgo.com/html/?q="+encodeURIComponent(v);
+  if(!/^https?:\/\//.test(v))v=/\.\w{2,}/.test(v)&&!v.includes(" ")?"https://"+v:"https://duckduckgo.com/html/?kp=1&q="+encodeURIComponent(v);
   if(!pFrame){pFrame=document.createElement("iframe");$("#pbox").append(pFrame)}
   pFrame.src="/p?url="+encodeURIComponent(v);
+};
+
+/* ---- admin panel (only shown to jackwobbe; the server re-checks every request) ---- */
+let adminTimer=null;
+async function loadAdmin(){
+  if(!me||!me.admin)return;
+  clearInterval(adminTimer);adminTimer=setInterval(()=>{if($("#admin").classList.contains("on"))loadAdmin()},8000);
+  let d;try{d=await api("/api/admin/overview")}catch(err){$("#admin").textContent=err.message;return}
+  const el=$("#admin"),typing=el.contains(document.activeElement)&&document.activeElement.tagName==="INPUT";
+  if(typing)return; // don't wipe what you're typing
+  const bd=u=>(u.admin?'<span class="badge b-adm">admin</span>':"")+(u.online?'<span class="badge b-on">online</span>':"")+(u.muted?'<span class="badge b-mute">muted</span>':"")+(u.banned?'<span class="badge b-ban">banned</span>':"");
+  const ub=(u,a,t,c="gray")=>`<button class="btn sm ${c}" data-act="user" data-name="${esc(u.name)}" data-do="${a}">${t}</button> `;
+  el.innerHTML=`
+  <h3>Users (${d.users.length})</h3>
+  <table><tr><th>Name</th><th>Status</th><th>Joined</th><th>Actions</th></tr>
+  ${d.users.map(u=>`<tr><td>${esc(u.name)}</td><td>${bd(u)}</td><td>${new Date(u.created).toLocaleDateString()}</td><td>${u.admin?"":
+    (u.muted?ub(u,"unmute","Unmute"):ub(u,"mute","Mute"))+(u.banned?ub(u,"unban","Unban"):ub(u,"ban","Ban","red"))+ub(u,"delete","Delete","red")}</td></tr>`).join("")}</table>
+
+  <h3>Blocked sites (added by you)</h3>
+  <div class="bar"><input id="nd" placeholder="example.com"><button data-act="add" data-type="domain">Block site</button></div>
+  <div>${d.blockedDomains.map(x=>`<span class="chip">${esc(x)}<span data-act="rm" data-type="domain" data-val="${esc(x)}">✕</span></span>`).join("")||'<span class="note">None yet. The built-in list is always active.</span>'}</div>
+
+  <h3>Blocked words (chat + searches)</h3>
+  <div class="bar"><input id="nw" placeholder="word or phrase"><button data-act="add" data-type="word">Block word</button></div>
+  <div>${d.blockedWords.map(x=>`<span class="chip">${esc(x)}<span data-act="rm" data-type="word" data-val="${esc(x)}">✕</span></span>`).join("")||'<span class="note">None yet.</span>'}</div>
+
+  <h3>Chat</h3><button class="btn red sm" data-act="clear">Clear chat for everyone</button>
+
+  <h3>Recent blocked attempts</h3>
+  <table><tr><th>Time</th><th>Type</th><th>User</th><th>Details</th></tr>
+  ${d.events.slice(0,60).map(v=>`<tr><td>${new Date(v.ts).toLocaleTimeString()}</td><td>${esc(v.kind)}</td><td>${esc(v.who)}</td><td style="word-break:break-all">${esc(v.detail)}</td></tr>`).join("")||'<tr><td colspan=4 class="note">Nothing blocked yet.</td></tr>'}</table>`;
+}
+$("#admin").onclick=async e=>{
+  const b=e.target.closest("[data-act]");if(!b)return;
+  const a=b.dataset.act;
+  try{
+    if(a==="user"){
+      if(b.dataset.do==="delete"&&!confirm("Delete "+b.dataset.name+"?"))return;
+      await api("/api/admin/user",{name:b.dataset.name,action:b.dataset.do});
+    }else if(a==="add"){
+      const inp=$(b.dataset.type==="domain"?"#nd":"#nw");if(!inp.value.trim())return;
+      await api("/api/admin/list",{type:b.dataset.type,action:"add",value:inp.value});
+    }else if(a==="rm")await api("/api/admin/list",{type:b.dataset.type,action:"remove",value:b.dataset.val});
+    else if(a==="clear"){if(!confirm("Clear the chat?"))return;await api("/api/admin/chat",{action:"clear"})}
+  }catch(err){alert(err.message)}
+  document.activeElement&&document.activeElement.blur();loadAdmin();
 };
 </script>
 </body>
