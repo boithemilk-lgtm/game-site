@@ -217,21 +217,58 @@ function clicker(st){
 
 /* ---- remote Chrome (Selenium) ---- */
 function remote(st){
-  st.innerHTML=`<div class="bar"><button class="tab" id="rb">◀</button><button class="tab" id="rf">▶</button><button class="tab" id="rr">⟳</button><input id="ru" placeholder="Search or enter URL"></div>
+  st.innerHTML=`<div class="bar"><button class="tab" id="rb">◀</button><button class="tab" id="rf">▶</button><button class="tab" id="rr">⟳</button><input id="ru" placeholder="Search or enter URL"><button class="tab" id="rm">🔊</button><input id="rv" type="range" min="0" max="100" value="80" style="flex:0 0 90px"></div>
   <canvas id="rc" width="1280" height="720" tabindex="0" style="width:100%;outline:none"></canvas><p class="note" id="rs">Connecting…</p>`;
-  const cv=$("#rc"),cx=cv.getContext("2d"),ws=rws=new WebSocket(REMOTE_WS+"?token="+encodeURIComponent(me.token)),
+  const cv=$("#rc"),cx=cv.getContext("2d"),stat=$("#rs");
+
+  /* audio: 24 kHz mono 16-bit chunks, scheduled back to back */
+  let ac=null,gain=null,nextT=0,vol=0.8,muted=false;
+  try{ac=new (window.AudioContext||window.webkitAudioContext)({sampleRate:24000});gain=ac.createGain();gain.gain.value=vol;gain.connect(ac.destination);ac.resume()}catch(e){}
+  const setVol=()=>{if(gain)gain.gain.value=muted?0:vol;$("#rm").textContent=muted?"🔇":"🔊"};
+  $("#rm").onclick=()=>{muted=!muted;setVol();if(ac)ac.resume()};
+  $("#rv").oninput=e=>{vol=e.target.value/100;muted=false;setVol()};
+  function playAudio(u8){
+    if(!ac||u8.byteLength<2)return;
+    if(ac.state==="suspended")ac.resume();
+    const n=u8.byteLength>>1,i16=new Int16Array(u8.slice(0,n*2).buffer),buf=ac.createBuffer(1,n,24000),ch=buf.getChannelData(0);
+    for(let i=0;i<n;i++)ch[i]=i16[i]/32768;
+    const src=ac.createBufferSource();src.buffer=buf;src.connect(gain);
+    const now=ac.currentTime;
+    if(nextT<now+0.02||nextT>now+0.7)nextT=now+0.15;   // re-sync after a gap or a build-up
+    src.start(nextT);nextT+=buf.duration;
+  }
+
+  /* video: always draw only the newest frame */
+  const ws=rws=new WebSocket(REMOTE_WS+"?token="+encodeURIComponent(me.token)),
         send=o=>ws.readyState===1&&ws.send(JSON.stringify(o));
-  ws.onmessage=async e=>{
+  ws.binaryType="arraybuffer";
+  let nextBlob=null,drawing=false,frames=0,lastStatus="Connecting…";
+  async function drawLoop(){
+    drawing=true;
+    while(nextBlob){
+      const b=nextBlob;nextBlob=null;
+      try{const bmp=await createImageBitmap(b);cx.drawImage(bmp,0,0,cv.width,cv.height);bmp.close();frames++}catch(e){}
+    }
+    drawing=false;
+  }
+  const fpsTimer=setInterval(()=>{if(ws.readyState===1&&lastStatus==="Connected")stat.textContent="Connected · "+frames+" fps";frames=0},1000);
+  ws.onmessage=e=>{
     if(typeof e.data==="string"){
       const m=JSON.parse(e.data);
-      if(m.t==="status")$("#rs").textContent=m.m;
+      if(m.t==="status"){lastStatus=m.m;stat.textContent=m.m}
       if(m.t==="url"&&document.activeElement!==$("#ru"))$("#ru").value=m.url;
       return;
     }
-    const b=await createImageBitmap(e.data);cx.drawImage(b,0,0,cv.width,cv.height);b.close();
+    const d=new Uint8Array(e.data);
+    if(d[0]===1){nextBlob=new Blob([d.subarray(1)],{type:"image/jpeg"});if(!drawing)drawLoop()}
+    else if(d[0]===2)playAudio(d.subarray(1));
   };
-  ws.onerror=()=>{const s=$("#rs");if(s)s.textContent="Could not reach the server. Is python server.py and cloudflared running, and is the address in REMOTE_WS current?"};
-  ws.onclose=ev=>{const s=$("#rs");if(s&&!/^Error|busy|ended|Could not|sign in|banned/i.test(s.textContent))s.textContent="Disconnected (code "+ev.code+")"};
+  ws.onerror=()=>{stat.textContent="Could not reach the server. Is python server.py and cloudflared running, and is the address in REMOTE_WS current?"};
+  ws.onclose=ev=>{
+    clearInterval(fpsTimer);try{if(ac)ac.close()}catch(e){}
+    if(!/^Error|busy|ended|Could not|sign in|banned/i.test(stat.textContent))stat.textContent="Disconnected (code "+ev.code+")";
+  };
+
   const pos=e=>{const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height}};
   const mods=e=>(e.altKey?1:0)|(e.ctrlKey?2:0)|(e.metaKey?4:0)|(e.shiftKey?8:0);
   const btn=["left","middle","right"];
@@ -240,7 +277,7 @@ function remote(st){
     if(!mv)requestAnimationFrame(()=>{if(mv)send({t:"m",type:"mouseMoved",...mv});mv=null});
     mv={...pos(e),mods:mods(e),buttons:e.buttons};
   };
-  cv.onmousedown=e=>{cv.focus();send({t:"m",type:"mousePressed",...pos(e),button:btn[e.button]||"left",buttons:e.buttons,cc:e.detail,mods:mods(e)})};
+  cv.onmousedown=e=>{cv.focus();if(ac&&ac.state==="suspended")ac.resume();send({t:"m",type:"mousePressed",...pos(e),button:btn[e.button]||"left",buttons:e.buttons,cc:e.detail,mods:mods(e)})};
   cv.onmouseup=e=>send({t:"m",type:"mouseReleased",...pos(e),button:btn[e.button]||"left",buttons:e.buttons,cc:e.detail,mods:mods(e)});
   cv.oncontextmenu=e=>e.preventDefault();
   cv.onwheel=e=>{e.preventDefault();send({t:"w",...pos(e),dx:e.deltaX,dy:e.deltaY})};
