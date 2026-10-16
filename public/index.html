@@ -126,7 +126,7 @@ h3{margin:22px 0 8px}
 <script>
 /* ================= CONFIG ================= */
 const SECRET = "67";
-const REMOTE_WS = "wss://utils-roof-rabbit-bradley.trycloudflare.com/ws"; // changes whenever you restart cloudflared
+const REMOTE_WS = "wss://attend-allowed-represented-lying.trycloudflare.com/ws"; // changes whenever you restart cloudflared
 const GAMES = [
   {name:"Chrome", icon:"🌐", builtin:"remote"},
   {name:"Snake", icon:"🐍", builtin:"snake"},
@@ -303,7 +303,7 @@ async function loadAdmin(){
   clearInterval(adminTimer);adminTimer=setInterval(()=>{if($("#admin").classList.contains("on"))loadAdmin()},8000);
   let d;try{d=await api("/api/admin/overview")}catch(err){$("#admin").textContent=err.message;return}
   const el=$("#admin"),typing=el.contains(document.activeElement)&&document.activeElement.tagName==="INPUT";
-  if(typing)return; // don't wipe what you're typing
+  if(typing)return;
   const bd=u=>(u.admin?'<span class="badge b-adm">admin</span>':"")+(u.online?'<span class="badge b-on">online</span>':"")+(u.muted?'<span class="badge b-mute">muted</span>':"")+(u.banned?'<span class="badge b-ban">banned</span>':"");
   const ub=(u,a,t,c="gray")=>`<button class="btn sm ${c}" data-act="user" data-name="${esc(u.name)}" data-do="${a}">${t}</button> `;
   el.innerHTML=`
