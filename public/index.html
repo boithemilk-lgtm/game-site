@@ -238,7 +238,7 @@ function remote(st){
     src.start(nextT);nextT+=buf.duration;
   }
 
-  /* video: always draw only the newest frame */
+  /* video: every frame is numbered; the page confirms each one back, and only draws the newest */
   const ws=rws=new WebSocket(REMOTE_WS+"?token="+encodeURIComponent(me.token)),
         send=o=>ws.readyState===1&&ws.send(JSON.stringify(o));
   ws.binaryType="arraybuffer";
@@ -260,8 +260,12 @@ function remote(st){
       return;
     }
     const d=new Uint8Array(e.data);
-    if(d[0]===1){nextBlob=new Blob([d.subarray(1)],{type:"image/jpeg"});if(!drawing)drawLoop()}
-    else if(d[0]===2)playAudio(d.subarray(1));
+    if(d[0]===1){
+      const seq=d[1]*16777216+(d[2]<<16)+(d[3]<<8)+d[4];
+      send({t:"ack",s:seq});
+      nextBlob=new Blob([d.subarray(5)],{type:"image/jpeg"});
+      if(!drawing)drawLoop();
+    }else if(d[0]===2)playAudio(d.subarray(1));
   };
   ws.onerror=()=>{stat.textContent="Could not reach the server. Is python server.py and cloudflared running, and is the address in REMOTE_WS current?"};
   ws.onclose=ev=>{
