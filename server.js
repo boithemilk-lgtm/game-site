@@ -23,7 +23,7 @@ const publicPath = fileURLToPath(new URL("./public/", import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || fileURLToPath(new URL("./data/", import.meta.url));
 try { mkdirSync(DATA_DIR, { recursive: true }); } catch {}
 const DB_FILE = DATA_DIR + "/db.json";
-let db = { users: {}, blockedDomains: [], blockedWords: [] };
+let db = { users: {}, blockedDomains: [], blockedWords: [], suggestions: [] };
 try { db = { ...db, ...JSON.parse(readFileSync(DB_FILE, "utf8")) }; } catch {}
 const save = () => { try { writeFileSync(DB_FILE, JSON.stringify(db)); } catch (e) { console.error("Could not save data:", e.message); } };
 
@@ -198,12 +198,60 @@ fastify.get("/api/me", async (req, reply) => {
   return { name: u.name, admin: isAdmin(u), token: makeToken(u.name) };
 });
 
+/* ---------- suggestions ---------- */
+const lastSuggest = new Map();
+
+fastify.post("/api/suggest", async (req, reply) => {
+  const u = authReq(req);
+  if (!u) return reply.code(401).send({ error: "Please sign in" });
+  const title = String((req.body || {}).title || "").trim().slice(0, 80);
+  const text = String((req.body || {}).text || "").trim().slice(0, 500);
+  if (title.length < 3) return reply.code(400).send({ error: "Give your suggestion a title (at least 3 characters)" });
+  if (checkChat(title + " " + text, db.blockedWords, db.blockedDomains)) {
+    addLog("suggest-block", u.name, title);
+    return reply.code(400).send({ error: "Your suggestion was blocked by the filter" });
+  }
+  const key = u.name.toLowerCase();
+  if (Date.now() - (lastSuggest.get(key) || 0) < 30_000) return reply.code(429).send({ error: "Please wait 30 seconds between suggestions" });
+  if (db.suggestions.filter((s) => s.by.toLowerCase() === key && s.status === "pending").length >= 5)
+    return reply.code(400).send({ error: "You already have 5 suggestions waiting for review" });
+  const id = db.suggestions.reduce((m, s) => Math.max(m, s.id), 0) + 1;
+  db.suggestions.push({ id, by: u.name, title, text, ts: Date.now(), status: "pending", note: "" });
+  lastSuggest.set(key, Date.now());
+  save();
+  return { ok: true };
+});
+
+fastify.get("/api/suggestions", async (req, reply) => {
+  const u = authReq(req);
+  if (!u) return reply.code(401).send({ error: "Please sign in" });
+  const adminView = isAdmin(u);
+  const items = (adminView ? db.suggestions : db.suggestions.filter((s) => s.by.toLowerCase() === u.name.toLowerCase()))
+    .slice().reverse();
+  return { items, admin: adminView, pending: adminView ? db.suggestions.filter((s) => s.status === "pending").length : 0 };
+});
+
 /* ---------- admin ---------- */
 const admin = (req, reply) => {
   const u = authReq(req);
   if (!u || !isAdmin(u)) { reply.code(403).send({ error: "Admins only" }); return null; }
   return u;
 };
+
+fastify.post("/api/admin/suggestion", async (req, reply) => {
+  if (!admin(req, reply)) return;
+  const { id, action, note } = req.body || {};
+  const i = db.suggestions.findIndex((s) => s.id === Number(id));
+  if (i < 0) return reply.code(404).send({ error: "No such suggestion" });
+  const s = db.suggestions[i];
+  if (action === "approve") { s.status = "approved"; s.note = String(note || "").slice(0, 200); }
+  else if (action === "reject") { s.status = "rejected"; s.note = String(note || "").slice(0, 200); }
+  else if (action === "reopen") { s.status = "pending"; s.note = ""; }
+  else if (action === "delete") db.suggestions.splice(i, 1);
+  else return reply.code(400).send({ error: "Unknown action" });
+  save();
+  return { ok: true };
+});
 
 fastify.get("/api/admin/overview", async (req, reply) => {
   if (!admin(req, reply)) return;
