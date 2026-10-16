@@ -93,8 +93,8 @@ canvas{background:#05060d;border:1px solid #ffffff22;border-radius:14px;display:
 <script>
 /* ================= CONFIG ================= */
 const SECRET = "67";
-// Your Selenium server's public address (from the cloudflared tunnel), ending in /ws
-const REMOTE_WS = "wss://YOUR-TUNNEL.trycloudflare.com/ws";
+// Your Selenium server's tunnel address. Changes every time you restart cloudflared!
+const REMOTE_WS = "wss://utils-roof-rabbit-bradley.trycloudflare.com/ws";
 const GAMES = [
   {name:"Chrome", icon:"🌐", builtin:"remote"},
   {name:"Snake", icon:"🐍", builtin:"snake"},
@@ -169,7 +169,8 @@ function remote(st){
     }
     const b=await createImageBitmap(e.data);cx.drawImage(b,0,0,cv.width,cv.height);b.close();
   };
-  ws.onclose=()=>{if($("#rs"))$("#rs").textContent="Disconnected"};
+  ws.onerror=()=>{const s=$("#rs");if(s)s.textContent="Could not reach the server. Is python server.py and cloudflared running, and is the address in REMOTE_WS current?"};
+  ws.onclose=ev=>{const s=$("#rs");if(s&&!/^Error|busy|ended|Could not/i.test(s.textContent))s.textContent="Disconnected (code "+ev.code+")"};
   const pos=e=>{const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height}};
   const mods=e=>(e.altKey?1:0)|(e.ctrlKey?2:0)|(e.metaKey?4:0)|(e.shiftKey?8:0);
   const btn=["left","middle","right"];
