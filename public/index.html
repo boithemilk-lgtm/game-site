@@ -91,12 +91,17 @@ canvas{background:#05060d;border:1px solid #ffffff22;border-radius:14px;display:
 </div>
 
 <script>
+/* ================= CONFIG ================= */
 const SECRET = "67";
+// Your Selenium server's public address (from the cloudflared tunnel), ending in /ws
+const REMOTE_WS = "wss://YOUR-TUNNEL.trycloudflare.com/ws";
 const GAMES = [
+  {name:"Chrome", icon:"🌐", builtin:"remote"},
   {name:"Snake", icon:"🐍", builtin:"snake"},
   {name:"Clicker", icon:"🖱️", builtin:"clicker"},
   // {name:"My Game", icon:"🎮", url:"https://cdn.jsdelivr.net/gh/YOURUSER/YOURREPO@main/games/mygame/index.html"},
 ];
+/* ========================================== */
 
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const hub=$("#hub"), front=$("#front");
@@ -111,14 +116,23 @@ $$(".tab[data-t]").forEach(b=>b.onclick=()=>{
   $$(".panel").forEach(p=>p.classList.toggle("on",p.id===b.dataset.t));});
 
 /* ---- games ---- */
-let loop=null,keyH=null;
-function stopGame(){clearInterval(loop);loop=null;if(keyH)removeEventListener("keydown",keyH);keyH=null;$("#stage").innerHTML=""}
+let loop=null,keyH=null,rws=null;
+function stopGame(){
+  clearInterval(loop);loop=null;
+  if(keyH)removeEventListener("keydown",keyH);keyH=null;
+  if(rws){rws.close();rws=null}
+  document.onpaste=null;
+  $("#stage").innerHTML="";
+}
 $("#glist").innerHTML=GAMES.map((g,i)=>`<div class="g" data-i="${i}"><div class="ic">${g.icon}</div><b>${g.name}</b></div>`).join("");
 $$(".g").forEach(el=>el.onclick=()=>{
   stopGame();const g=GAMES[el.dataset.i],st=$("#stage");
   if(g.url)st.innerHTML=`<iframe src="${g.url}" allowfullscreen></iframe>`;
-  else if(g.builtin==="snake")snake(st);else if(g.builtin==="clicker")clicker(st);
+  else if(g.builtin==="snake")snake(st);
+  else if(g.builtin==="clicker")clicker(st);
+  else if(g.builtin==="remote")remote(st);
   st.scrollIntoView({behavior:"smooth"});});
+
 function snake(st){
   st.innerHTML='<canvas id="c" width="400" height="400"></canvas><p class="note" style="text-align:center">Arrow keys / WASD</p>';
   const c=$("#c").getContext("2d"),N=20,S=20;let s=[{x:10,y:10}],d={x:1,y:0},f={x:5,y:5},sc=0;
@@ -138,6 +152,49 @@ function snake(st){
 function clicker(st){
   let n=0;st.innerHTML='<div style="text-align:center"><h2 id="n">0</h2><button class="tab on" id="b" style="font-size:22px;padding:18px 40px">Click!</button></div>';
   $("#b").onclick=()=>$("#n").textContent=++n;
+}
+
+/* ---- remote Chrome (Selenium) ---- */
+function remote(st){
+  st.innerHTML=`<div class="bar"><button class="tab" id="rb">◀</button><button class="tab" id="rf">▶</button><button class="tab" id="rr">⟳</button><input id="ru" placeholder="Search or enter URL"></div>
+  <canvas id="rc" width="1280" height="720" tabindex="0" style="width:100%;outline:none"></canvas><p class="note" id="rs">Connecting…</p>`;
+  const cv=$("#rc"),cx=cv.getContext("2d"),ws=rws=new WebSocket(REMOTE_WS),
+        send=o=>ws.readyState===1&&ws.send(JSON.stringify(o));
+  ws.onmessage=async e=>{
+    if(typeof e.data==="string"){
+      const m=JSON.parse(e.data);
+      if(m.t==="status")$("#rs").textContent=m.m;
+      if(m.t==="url"&&document.activeElement!==$("#ru"))$("#ru").value=m.url;
+      return;
+    }
+    const b=await createImageBitmap(e.data);cx.drawImage(b,0,0,cv.width,cv.height);b.close();
+  };
+  ws.onclose=()=>{if($("#rs"))$("#rs").textContent="Disconnected"};
+  const pos=e=>{const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height}};
+  const mods=e=>(e.altKey?1:0)|(e.ctrlKey?2:0)|(e.metaKey?4:0)|(e.shiftKey?8:0);
+  const btn=["left","middle","right"];
+  let mv=null;
+  cv.onmousemove=e=>{
+    if(!mv)requestAnimationFrame(()=>{if(mv)send({t:"m",type:"mouseMoved",...mv});mv=null});
+    mv={...pos(e),mods:mods(e),buttons:e.buttons};
+  };
+  cv.onmousedown=e=>{cv.focus();send({t:"m",type:"mousePressed",...pos(e),button:btn[e.button]||"left",buttons:e.buttons,cc:e.detail,mods:mods(e)})};
+  cv.onmouseup=e=>send({t:"m",type:"mouseReleased",...pos(e),button:btn[e.button]||"left",buttons:e.buttons,cc:e.detail,mods:mods(e)});
+  cv.oncontextmenu=e=>e.preventDefault();
+  cv.onwheel=e=>{e.preventDefault();send({t:"w",...pos(e),dx:e.deltaX,dy:e.deltaY})};
+  const key=type=>e=>{
+    e.stopPropagation();
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="v")return; // paste event handles it
+    e.preventDefault();
+    const text=(e.ctrlKey||e.metaKey||e.altKey)?"":(e.key.length===1?e.key:(e.key==="Enter"?"\r":""));
+    send({t:"k",type,key:e.key,code:e.code,vk:e.keyCode,mods:mods(e),text});
+  };
+  cv.onkeydown=key("keyDown");cv.onkeyup=key("keyUp");
+  document.onpaste=e=>{if(document.activeElement===cv){e.preventDefault();send({t:"paste",text:e.clipboardData.getData("text")})}};
+  $("#rb").onclick=()=>send({t:"back"});
+  $("#rf").onclick=()=>send({t:"fwd"});
+  $("#rr").onclick=()=>send({t:"reload"});
+  $("#ru").onkeydown=e=>{e.stopPropagation();if(e.key==="Enter"){send({t:"nav",url:$("#ru").value});cv.focus()}};
 }
 
 /* ---- chat ---- */
