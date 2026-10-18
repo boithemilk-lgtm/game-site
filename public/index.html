@@ -437,7 +437,7 @@ function spaceDodger(st){
 
 /* ---- tic-tac-toe ---- */
 function ticTacToe(st){
-  shell(st,"❌ Tic-Tac-Toe","two-player game on the same screen. X goes first.",'<div class="game-info" id="tttStatus">X\\'s turn</div><div class="ttt-board" id="tttBoard"></div><div class="game-actions">'+actionButton("New round","tttReset")+'</div>');
+  shell(st,"❌ Tic-Tac-Toe","two-player game on the same screen. X goes first.",'<div class="game-info" id="tttStatus">X&#39;s turn</div><div class="ttt-board" id="tttBoard"></div><div class="game-actions">'+actionButton("New round","tttReset")+'</div>');
   let cells,turn,done;
   function draw(){
     $("#tttBoard").innerHTML=cells.map((v,i)=>`<button class="ttt-cell" data-cell="${i}" aria-label="cell ${i+1}">${v}</button>`).join("");
